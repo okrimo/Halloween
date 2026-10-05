@@ -1,0 +1,12 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'it.halloween.awards'
+    compileSdk 34
+    defaultConfig {
+        applicationId "it.halloween.awards"
+        minSdk 29
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+}
