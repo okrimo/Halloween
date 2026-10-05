@@ -17,6 +17,7 @@ import java.io.OutputStream;
 public class MainActivity extends Activity {
     private WebView web, printer;
     private ValueCallback<Uri[]> chooser;
+    private Uri camUri;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -53,7 +54,20 @@ public class MainActivity extends Activity {
             @Override public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
                 if (chooser != null) chooser.onReceiveValue(null);
                 chooser = cb;
-                startActivityForResult(p.createIntent(), 1);
+                try {
+                    Intent i;
+                    if (p.isCaptureEnabled()) { // "Scatta foto": apre direttamente la fotocamera
+                        ContentValues cv = new ContentValues();
+                        cv.put(MediaStore.Images.Media.DISPLAY_NAME, "costume_" + System.currentTimeMillis() + ".jpg");
+                        cv.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                        camUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
+                        i = new Intent(MediaStore.ACTION_IMAGE_CAPTURE).putExtra(MediaStore.EXTRA_OUTPUT, camUri);
+                    } else { camUri = null; i = p.createIntent(); }
+                    startActivityForResult(i, 1);
+                } catch (Exception e) {
+                    chooser = null; cb.onReceiveValue(null);
+                    Toast.makeText(MainActivity.this, "Impossibile aprire fotocamera o galleria", Toast.LENGTH_LONG).show();
+                }
                 return true;
             }
         });
@@ -64,7 +78,13 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int req, int res, Intent data) {
         super.onActivityResult(req, res, data);
         if (req == 1 && chooser != null) {
-            chooser.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(res, data));
+            Uri[] r = null;
+            if (camUri != null) {
+                if (res == RESULT_OK) r = new Uri[]{camUri};
+                else getContentResolver().delete(camUri, null, null);
+                camUri = null;
+            } else r = WebChromeClient.FileChooserParams.parseResult(res, data);
+            chooser.onReceiveValue(r);
             chooser = null;
         }
     }

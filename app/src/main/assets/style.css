@@ -50,3 +50,4 @@ code{background:#150c22;padding:2px 8px;border-radius:6px;color:var(--or)}
 .stat{background:var(--pur);border-radius:14px;padding:12px;text-align:center;font-size:.8rem}
 .stat b{display:block;font-size:2.2rem;color:var(--or)}
 @media(max-width:600px){h1{font-size:2.2rem}.row span{flex-basis:45%}}
+.photoRow{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.pv img,.pv .ph{width:140px;height:140px;border-radius:14px;object-fit:cover;margin:0}

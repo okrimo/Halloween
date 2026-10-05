@@ -46,7 +46,14 @@ const V = {
     return head(S.edit ? 'MODIFICA PARTECIPANTE' : 'NUOVO PARTECIPANTE', 'parts') + `<div class="form">
     <label>Nome<input id="fn" value="${esc(p.name)}"></label><label>Costume<input id="fc" value="${esc(p.costume)}"></label>
     <label>Codice<input id="fk" value="${esc(p.code)}" autocapitalize="characters"></label>
-    <label>Foto (percorso o URL, es. foto/mario.jpg — facoltativa)<input id="fp" value="${esc(p.photo)}"></label>
+    <label>Foto (facoltativa)</label>
+    <div class="photoRow"><div class="pv" id="prev">${S.edit ? photo(p) : '<div class="ph">🎃</div>'}</div><div>
+    <button class="btn sm ghost" onclick="$('#fg').click()">🖼️ SCEGLI DALLA GALLERIA</button>
+    <button class="btn sm ghost" onclick="$('#fc2').click()">📷 SCATTA FOTO</button>
+    <button class="btn sm ghost" onclick="removePhoto()">✖ RIMUOVI</button><p class="muted">Senza foto verrà usata un'icona Halloween.</p></div></div>
+    <input type="hidden" id="fp" value="${esc(p.photo)}">
+    <input type="file" id="fg" accept="image/*" hidden onchange="loadPhoto(this)">
+    <input type="file" id="fc2" accept="image/*" capture="environment" hidden onchange="loadPhoto(this)">
     <div class="err" id="ferr"></div><button class="btn" onclick="savePart()">SALVA</button></div>`;
   },
   cats: () => head('🏆 CATEGORIE', 'admin') + `<button class="btn" onclick="go('catForm')">+ AGGIUNGI CATEGORIA</button>` +
@@ -119,6 +126,24 @@ function readSettings() {
   save();
 }
 function flip(k, back) { if (back === 'settings') readSettings(); db.settings[k] = !db.settings[k]; save(); go(back); }
+function loadPhoto(inp) {
+  const f = inp.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    const im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 600 / Math.max(im.width, im.height)), c = document.createElement('canvas');
+      c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      const d = c.toDataURL('image/jpeg', 0.8);
+      $('#fp').value = d; $('#prev').innerHTML = `<img src="${d}" alt="">`;
+    };
+    im.onerror = () => $('#ferr').textContent = 'Immagine non valida';
+    im.src = r.result;
+  };
+  r.readAsDataURL(f); inp.value = '';
+}
+function removePhoto() { $('#fp').value = ''; $('#prev').innerHTML = '<div class="ph">🎃</div>'; }
 function savePart() {
   const n = $('#fn').value.trim(), k = $('#fk').value.trim().toUpperCase(), e = $('#ferr');
   if (!n || !k) return e.textContent = 'Nome e codice sono obbligatori';
