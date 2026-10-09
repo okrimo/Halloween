@@ -2,9 +2,9 @@ const $ = s => document.querySelector(s), ICONS = ['🎃', '👻', '🦇', '🕷
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const cats = () => db.categories.filter(c => c.active !== false);
 const find = id => db.participants.find(p => p.id === id);
-let S = { view: 'home' };
+let S = { view: 'home' }, RD = null; // RD = dati ricevuti dal foglio durante una votazione da telefono
 function go(v, x = {}) { S = { voter: S.voter, idx: S.idx, sel: S.sel, ...x, view: v }; render(); scrollTo(0, 0); }
-const photo = p => p.photo ? `<img src="${esc(p.photo)}" alt="">` : `<div class="ph">${ICONS[db.participants.indexOf(p) % 5]}</div>`;
+const photo = p => p.photo ? `<img src="${esc(p.photo)}" alt="">` : `<div class="ph">${ICONS[Math.max(0, (RD ? RD.candidates : db.participants).indexOf(p)) % 5]}</div>`;
 const head = (t, back) => `<div class="top">${back ? `<button class="btn sm" onclick="go('${back}')">← Indietro</button>` : ''}<h2>${t}</h2></div>`;
 const msgPage = (e, t, x) => `<div class="center"><div class="big">${e}</div><h1>${t}</h1><p>${x}</p><button class="btn" onclick="go('home',{voter:null})">TORNA ALL'INIZIO</button></div>`;
 
@@ -17,13 +17,13 @@ const V = {
   closed: () => msgPage('🔴', 'VOTAZIONE CHIUSA', 'Le votazioni non sono al momento aperte.'),
   done: () => msgPage('🎃', 'VOTAZIONE COMPLETATA!', 'Grazie per aver votato.<br>I risultati saranno mostrati<br>alla fine della serata.<br>👻'),
   vote: () => {
-    const cs = cats(), c = cs[S.idx], me = find(S.voter);
+    const cs = RD ? RD.categories : cats(), c = cs[S.idx], me = RD ? RD.me : find(S.voter), parts = RD ? RD.candidates : db.participants, allow = RD ? RD.allowSelfVote : db.settings.allowSelfVote;
     return `<div class="top"><h3>🎃 HALLOWEEN AWARDS</h3></div>
     ${S.greet ? `<div class="ok">Ciao ${esc(me.name.split(' ')[0])}! 🎃</div>` : ''}
     <b>CATEGORIA ${S.idx + 1} / ${cs.length}</b><div class="prog"><i style="width:${(S.idx + 1) / cs.length * 100}%"></i></div>
     <div class="center" style="padding:8px 0"><div class="big" style="font-size:3.5rem">${c.emoji}</div><h1 style="font-size:2rem">${esc(c.name.toUpperCase())}</h1><p>Scegli il tuo preferito</p></div>
-    <div class="grid">${db.participants.map(p => {
-      const self = p.id === me.id && !db.settings.allowSelfVote;
+    <div class="grid">${parts.map(p => {
+      const self = p.id === me.id && !allow;
       return `<div class="card ${self ? 'dis' : ''}" data-id="${p.id}" ${self ? '' : `onclick="pick('${p.id}')"`}><span class="chk">✓</span>${photo(p)}<b>${esc(p.name)}</b><span>${esc(p.costume)}</span>${self ? '<em>Questo sei tu</em>' : '<em class="sel">SELEZIONATO</em>'}</div>`;
     }).join('')}</div>
     <div class="dock"><button id="next" class="btn" hidden onclick="confirmVote()">CONFERMA VOTO →</button></div>`;
@@ -31,7 +31,7 @@ const V = {
   admin: () => {
     const o = db.settings.open;
     const items = [['👥', 'PARTECIPANTI', "go('parts')"], ['🏆', 'CATEGORIE', "go('cats')"], ['📊', 'RISULTATI', "go('results')"], ['⚙️', 'IMPOSTAZIONI', "go('settings')"],
-      ['💾', 'ESPORTA DATI', 'exportData()'], ['📂', 'IMPORTA DATI', "$('#imp').click()"], ['⚠️', 'RESET VOTI', 'resetVotes()'], ['🚪', 'ESCI', "go('home',{voter:null})"]];
+      ['💾', 'ESPORTA DATI', 'exportData()'], ['📂', 'IMPORTA DATI', "$('#imp').click()"], ['⚠️', 'RESET VOTI', 'resetVotes()'], ['🚪', 'ESCI', "go('home',{voter:null})"]].concat(remote() ? [['☁️', 'PUBBLICA SU FOGLI', 'syncConfig()'], ['⬇️', 'SCARICA VOTI', 'pullVotes()']] : []);
     return `${S.msg ? `<div class="ok">${S.msg}</div>` : ''}<div class="center"><div class="big">🎃</div><h1>ADMIN PANEL</h1>
     <div class="state">${o ? '🟢 VOTAZIONE APERTA' : '🔴 VOTAZIONE CHIUSA'}</div><button class="btn" onclick="flip('open','admin')">${o ? 'CHIUDI VOTAZIONI' : 'RIAPRI VOTAZIONI'}</button></div>
     <div class="grid menu">${items.map(i => `<button onclick="${i[2]}"><span>${i[0]}</span>${i[1]}</button>`).join('')}</div>
@@ -70,7 +70,7 @@ const V = {
     const np = db.participants.length, nv = db.participants.filter(p => p.voted).length;
     const stat = (l, n) => `<div class="stat"><b>${n}</b>${l}</div>`;
     const rank = db.participants.map(p => ({ p, n: db.votes.filter(v => v.candidate === p.id && db.categories.some(c => c.id === v.category)).length })).sort((a, b) => b.n - a.n);
-    return head('🏆 RISULTATI', 'admin') + `<div class="stats">${stat('PARTECIPANTI', np)}${stat('HANNO VOTATO', nv)}${stat('NON HANNO VOTATO', np - nv)}${stat('VOTI TOTALI', db.votes.length)}${stat('CATEGORIE', db.categories.length)}</div>` +
+    return head('🏆 RISULTATI', 'admin') + (remote() ? '<button class="btn" onclick="pullVotes()">⬇️ AGGIORNA DAI FOGLI</button>' : '') + `<div class="stats">${stat('PARTECIPANTI', np)}${stat('HANNO VOTATO', nv)}${stat('NON HANNO VOTATO', np - nv)}${stat('VOTI TOTALI', db.votes.length)}${stat('CATEGORIE', db.categories.length)}</div>` +
       db.categories.map(c => {
         const t = tally(c.id), max = Math.max(1, ...t.map(x => x.n)), tot = t.reduce((s, x) => s + x.n, 0);
         return `<section class="panel"><h3>${c.emoji} ${esc(c.name.toUpperCase())}</h3>` +
@@ -92,7 +92,9 @@ function render() { $('#app').innerHTML = V[S.view](); }
 /* ---- Votazione ---- */
 function login() {
   const c = $('#code').value.trim().toUpperCase();
+  RD = null;
   if (c && c === db.settings.adminCode.toUpperCase()) return go('admin');
+  if (remote()) return remoteLogin(c);
   const p = db.participants.find(p => p.code.toUpperCase() === c);
   if (!c || !p) return go('home', { err: '❌ Codice non valido' });
   if (p.voted) return go('already');
@@ -108,6 +110,7 @@ function pick(id) {
   $('#next').hidden = false;
 }
 function confirmVote() {
+  if (RD) return remoteVote();
   const p = find(S.voter), c = cats()[S.idx];
   if (!db.settings.open) return go('closed');
   if (!p || p.voted || !c || !find(S.sel) || (S.sel === p.id && !db.settings.allowSelfVote) || db.votes.some(v => v.voter === p.id && v.category === c.id))
@@ -125,17 +128,17 @@ function readSettings() {
   if (a && a.value.trim()) db.settings.adminCode = a.value.trim();
   save();
 }
-function flip(k, back) { if (back === 'settings') readSettings(); db.settings[k] = !db.settings[k]; save(); go(back); }
+function flip(k, back) { if (back === 'settings') readSettings(); db.settings[k] = !db.settings[k]; save(); if (remote() && k === 'open' && back === 'admin') return syncConfig(); go(back); }
 function loadPhoto(inp) {
   const f = inp.files[0]; if (!f) return;
   const r = new FileReader();
   r.onload = () => {
     const im = new Image();
     im.onload = () => {
-      const k = Math.min(1, 600 / Math.max(im.width, im.height)), c = document.createElement('canvas');
+      const k = Math.min(1, 256 / Math.max(im.width, im.height)), c = document.createElement('canvas');
       c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
       c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-      const d = c.toDataURL('image/jpeg', 0.8);
+      const d = c.toDataURL('image/jpeg', 0.7);
       $('#fp').value = d; $('#prev').innerHTML = `<img src="${d}" alt="">`;
     };
     im.onerror = () => $('#ferr').textContent = 'Immagine non valida';
@@ -180,6 +183,7 @@ function moveCat(i, d) {
 }
 function resetVotes() {
   if (!confirm('ATTENZIONE\n\nStai per cancellare tutti i voti.\nI partecipanti e le categorie NON verranno eliminati.')) return;
+  if (remote()) api('reset', { adminCode: db.settings.adminCode }).then(r => { if (r.error) alert('Il foglio non ha azzerato i voti'); }).catch(() => alert('Errore di connessione: i voti sul foglio NON sono stati azzerati'));
   db.votes = []; db.participants.forEach(p => p.voted = false); save(); go('admin', { msg: 'Voti azzerati' });
 }
 function genCodes() {
@@ -198,6 +202,55 @@ function exportData() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(db, null, 1)], { type: 'application/json' }));
   a.download = 'halloween-backup.json'; a.click();
+}
+/* ---- Votazione da telefono con Fogli Google ---- */
+const remote = () => typeof SHEETS_URL === 'string' && SHEETS_URL.trim() !== '';
+async function api(action, data = {}) {
+  const r = await fetch(SHEETS_URL, { method: 'POST', body: JSON.stringify({ action, ...data }) });
+  return r.json();
+}
+async function remoteLogin(c) {
+  if (!c) return go('home', { err: '❌ Codice non valido' });
+  $('.err').textContent = 'Attendi…';
+  try {
+    const r = await api('login', { code: c });
+    if (r.error === 'invalid') return go('home', { err: '❌ Codice non valido' });
+    if (r.error === 'closed') return go('closed');
+    if (r.error === 'voted') return go('already');
+    if (r.error) throw 0;
+    RD = { ...r, code: c };
+    go('vote', { voter: r.me.id, idx: Math.max(0, r.categories.findIndex(x => !r.done.includes(x.id))), sel: null, greet: true });
+  } catch (e) { go('home', { err: 'Errore di connessione, riprova' }); }
+}
+async function remoteVote() {
+  const b = $('#next'); b.disabled = true; b.textContent = 'Invio…';
+  try {
+    const r = await api('vote', { code: RD.code, category: RD.categories[S.idx].id, candidate: S.sel });
+    if (r.error === 'closed') { RD = null; return go('closed'); }
+    if (!r.ok) throw 0;
+    if (r.finished || S.idx + 1 >= RD.categories.length) { RD = null; return go('done', { voter: null }); }
+    go('vote', { idx: S.idx + 1, sel: null });
+  } catch (e) { b.disabled = false; b.textContent = 'CONFERMA VOTO →'; alert('Errore di connessione, riprova'); }
+}
+async function syncConfig() {
+  const s = db.settings, parts = db.participants.map(p => ({ id: p.id, name: p.name, costume: p.costume, code: p.code, photo: (p.photo || '').length <= 30000 ? p.photo : '' }));
+  try {
+    const r = await api('push', { adminCode: s.adminCode, config: { eventName: s.eventName, allowSelfVote: !!s.allowSelfVote, open: !!s.open, participants: parts, categories: cats().map(c => ({ id: c.id, name: c.name, emoji: c.emoji })) } });
+    if (r.error === 'auth') return go('admin', { msg: '❌ Il foglio ha già un codice admin diverso da quello dell\'app' });
+    if (!r.ok) throw 0;
+    go('admin', { msg: '✅ Configurazione pubblicata su Fogli Google' });
+  } catch (e) { go('admin', { msg: '❌ Errore di connessione' }); }
+}
+async function pullVotes() {
+  try {
+    const r = await api('votes', { adminCode: db.settings.adminCode });
+    if (r.error === 'auth') return go('admin', { msg: '❌ Codice admin non accettato dal foglio (pubblica prima la configurazione)' });
+    if (!r.votes) throw 0;
+    db.votes = r.votes.filter(v => find(v.voter) && find(v.candidate) && db.categories.some(c => c.id === v.category));
+    const cs = cats();
+    db.participants.forEach(p => p.voted = cs.length > 0 && cs.every(c => db.votes.some(v => v.voter === p.id && v.category === c.id)));
+    save(); go('results');
+  } catch (e) { go('admin', { msg: '❌ Errore di connessione' }); }
 }
 function importData(inp) {
   const f = inp.files[0]; if (!f) return;
