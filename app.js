@@ -30,7 +30,7 @@ const V = {
   },
   admin: () => {
     const o = db.settings.open;
-    const items = [['👥', 'PARTECIPANTI', "go('parts')"], ['🏆', 'CATEGORIE', "go('cats')"], ['📊', 'RISULTATI', "go('results')"], ['⚙️', 'IMPOSTAZIONI', "go('settings')"],
+    const items = [['👥', 'PARTECIPANTI', "go('parts')"], ['🏆', 'CATEGORIE', "go('cats')"], ['📊', 'RISULTATI', "go('results')"], ['⚙️', 'IMPOSTAZIONI', "go('settings')"], ['🎩', 'CAPPELLO PARLANTE', "go('hat')"],
       ['💾', 'ESPORTA DATI', 'exportData()'], ['📂', 'IMPORTA DATI', "$('#imp').click()"], ['⚠️', 'RESET VOTI', 'resetVotes()'], ['🚪', 'ESCI', "go('home',{voter:null})"]].concat(remote() ? [['☁️', 'PUBBLICA SU FOGLI', 'syncConfig()'], ['⬇️', 'SCARICA VOTI', 'pullVotes()']] : []);
     return `${S.msg ? `<div class="ok">${S.msg}</div>` : ''}<div class="center"><div class="big">🎃</div><h1>ADMIN PANEL</h1>
     <div class="state">${o ? '🟢 VOTAZIONE APERTA' : '🔴 VOTAZIONE CHIUSA'}</div><button class="btn" onclick="flip('open','admin')">${o ? 'CHIUDI VOTAZIONI' : 'RIAPRI VOTAZIONI'}</button></div>
@@ -38,7 +38,7 @@ const V = {
     <input type="file" id="imp" accept=".json" hidden onchange="importData(this)">`;
   },
   parts: () => head('👥 PARTECIPANTI', 'admin') +
-    `<div><button class="btn" onclick="go('partForm')">+ AGGIUNGI PARTECIPANTE</button><button class="btn ghost" onclick="genCodes()">GENERA CODICI</button><button class="btn ghost" onclick="printCodes()">🖨️ STAMPA CODICI</button></div>` +
+    `<div><button class="btn" onclick="go('partForm')">+ AGGIUNGI PARTECIPANTE</button><button class="btn ghost" onclick="genCodes()">GENERA CODICI</button><button class="btn ghost" onclick="printCodes()">🖨️ STAMPA CODICI</button><button class="btn ghost" onclick="hatReset()">🎩 AZZERA CAPPELLO</button></div>` +
     db.participants.map(p => `<div class="item"><div><b>${esc(p.name)}</b><br>${esc(p.costume)}<br>Codice: <code>${esc(p.code)}</code> ${p.voted ? '✅ ha votato' : ''}</div>
     <div><button class="btn sm" onclick="go('partForm',{edit:'${p.id}'})">MODIFICA</button><button class="btn sm danger" onclick="delPart('${p.id}')">ELIMINA</button></div></div>`).join(''),
   partForm: () => {
