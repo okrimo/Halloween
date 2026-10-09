@@ -49,9 +49,15 @@ function hatFill(t, p) {
     .replace(/{n}/g, db.participants.filter(x => x.hat).length + 1)
     .replace(/{ora}/g, new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
 }
+// Legge una frase e si risolve SOLO quando ha finito di parlare (nessuna frase viene interrotta).
 function hatSpeak(t) {
-  if (!hatOpts.voice || !window.speechSynthesis) return;
-  speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'it-IT'; u.pitch = .6; u.rate = .95; speechSynthesis.speak(u);
+  return new Promise(res => {
+    if (!hatOpts.voice || !window.speechSynthesis) return res(false);
+    const u = new SpeechSynthesisUtterance(t); u.lang = 'it-IT'; u.pitch = .6; u.rate = .95;
+    let to; const end = () => { clearTimeout(to); res(true); };
+    to = setTimeout(end, 20000); // sicurezza se il sintetizzatore si blocca
+    u.onend = end; u.onerror = end; speechSynthesis.speak(u);
+  });
 }
 
 /* ---- Schermate ---- */
@@ -148,15 +154,18 @@ function hatShot(p) {
 }
 async function hatSort() {
   const H = HAT, p = H.p, say = $('#hsay'); H.busy = true; H.talk = true; $('#hgo').hidden = true;
-  for (const s of [...H_THINK].sort(() => Math.random() - .5).slice(0, 3)) {
-    say.textContent = hatFill(s, p); hatSpeak(say.textContent); await hatWait(2800); if (HAT !== H) return;
+  for (const f of [...H_THINK].sort(() => Math.random() - .5).slice(0, 3)) {
+    say.textContent = hatFill(f, p);
+    await Promise.all([hatSpeak(say.textContent), hatWait(2800)]); // aspetta la fine della frase
+    if (HAT !== H) return;
   }
   const q = H_COSTUME.find(a => a[0].test(p.costume || ''));
   const text = hatFill(hpick(H_VERDICT), p) + (q ? ' ' + hatFill(q[1], p) : '');
-  say.textContent = text; $('#hcode').textContent = p.code.split('').join(' '); $('#hcode').hidden = false;
-  hatSpeak(text + ' Il tuo codice è: ' + p.code.split('').join(', '));
+  say.textContent = text; $('#hcode').textContent = p.code.split('').join(' '); $('#hcode').hidden = false; // il codice si vede solo sullo schermo
   if (hatOpts.photo && !p.photo) hatShot(p);
   p.hat = true; save(); $('#hdone').hidden = false;
-  setTimeout(() => { H.talk = false; }, 3000);
+  await Promise.all([hatSpeak(text), hatWait(3000)]);
+  if (HAT !== H) return;
+  H.talk = false;
   hatTimer = setTimeout(() => { if (HAT === H) { stopHat(); go('hat'); } }, 30000);
 }
