@@ -26,7 +26,7 @@ const V = {
       const self = p.id === me.id && !allow;
       return `<div class="card ${self ? 'dis' : ''}" data-id="${p.id}" ${self ? '' : `onclick="pick('${p.id}')"`}><span class="chk">✓</span>${photo(p)}<b>${esc(p.name)}</b><span>${esc(p.costume)}</span>${self ? '<em>Questo sei tu</em>' : '<em class="sel">SELEZIONATO</em>'}</div>`;
     }).join('')}</div>
-    <div class="dock"><button id="next" class="btn" hidden onclick="confirmVote()">CONFERMA VOTO →</button></div>`;
+    <div class="dock"><button id="next" class="btn" hidden onclick="confirmVote()">${RD && S.idx + 1 >= cs.length ? 'INVIA I VOTI ✓' : 'CONFERMA VOTO →'}</button></div>`;
   },
   admin: () => {
     const o = db.settings.open;
@@ -223,14 +223,17 @@ async function remoteLogin(c) {
   } catch (e) { go('home', { err: 'Errore di connessione, riprova' }); }
 }
 async function remoteVote() {
+  const c = RD.categories[S.idx];
+  RD.picks = RD.picks || {}; RD.picks[c.id] = S.sel;
+  if (S.idx + 1 < RD.categories.length) return go('vote', { idx: S.idx + 1, sel: null }); // niente invio: si passa alla categoria dopo
   const b = $('#next'); b.disabled = true; b.textContent = 'Invio…';
   try {
-    const r = await api('vote', { code: RD.code, category: RD.categories[S.idx].id, candidate: S.sel });
+    const picks = RD.categories.filter(x => RD.picks[x.id]).map(x => ({ category: x.id, candidate: RD.picks[x.id] }));
+    const r = await api('voteAll', { code: RD.code, picks });
     if (r.error === 'closed') { RD = null; return go('closed'); }
     if (!r.ok) throw 0;
-    if (r.finished || S.idx + 1 >= RD.categories.length) { RD = null; return go('done', { voter: null }); }
-    go('vote', { idx: S.idx + 1, sel: null });
-  } catch (e) { b.disabled = false; b.textContent = 'CONFERMA VOTO →'; alert('Errore di connessione, riprova'); }
+    RD = null; go('done', { voter: null });
+  } catch (e) { b.disabled = false; b.textContent = 'RIPROVA INVIO →'; alert('Errore di connessione: i tuoi voti NON sono ancora stati inviati. Premi di nuovo il pulsante.'); }
 }
 async function syncConfig() {
   const s = db.settings, parts = db.participants.map(p => ({ id: p.id, name: p.name, costume: p.costume, code: p.code, photo: (p.photo || '').length <= 30000 ? p.photo : '' }));
