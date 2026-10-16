@@ -1,6 +1,9 @@
 const $ = s => document.querySelector(s), ICONS = ['🎃', '👻', '🦇', '🕷️', '💀'];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const cats = () => db.categories.filter(c => c.active !== false);
+const cats = () => db.categories.filter(c => c.active !== false && (c.kind !== 'couple' || couples().length));
+// Coppie = due partecipanti che si sono scelti a vicenda. id coppia = "idA|idB"
+const couples = () => { const o = []; db.participants.forEach(a => { const b = find(a.partner); if (b && b.partner === a.id && a.id < b.id) o.push({ id: a.id + '|' + b.id, name: a.name + ' & ' + b.name, costume: a.costume === b.costume ? a.costume : a.costume + ' & ' + b.costume, members: [a.id, b.id] }); }); return o; };
+const candsFor = c => c.kind === 'couple' ? (RD ? RD.couples : couples()) : (RD ? RD.candidates : db.participants);
 const find = id => db.participants.find(p => p.id === id);
 let S = { view: 'home' }, RD = null; // RD = dati ricevuti dal foglio durante una votazione da telefono
 function go(v, x = {}) { S = { voter: S.voter, idx: S.idx, sel: S.sel, ...x, view: v }; render(); scrollTo(0, 0); }
@@ -17,14 +20,14 @@ const V = {
   closed: () => msgPage('🔴', 'VOTAZIONE CHIUSA', 'Le votazioni non sono al momento aperte.'),
   done: () => msgPage('🎃', 'VOTAZIONE COMPLETATA!', 'Grazie per aver votato.<br>I risultati saranno mostrati<br>alla fine della serata.<br>👻'),
   vote: () => {
-    const cs = RD ? RD.categories : cats(), c = cs[S.idx], me = RD ? RD.me : find(S.voter), parts = RD ? RD.candidates : db.participants, allow = RD ? RD.allowSelfVote : db.settings.allowSelfVote;
+    const cs = RD ? RD.categories : cats(), c = cs[S.idx], me = RD ? RD.me : find(S.voter), P = RD ? RD.candidates : db.participants, parts = candsFor(c), allow = RD ? RD.allowSelfVote : db.settings.allowSelfVote;
     return `<div class="top"><h3>🎃 HALLOWEEN AWARDS</h3></div>
     ${S.greet ? `<div class="ok">Ciao ${esc(me.name.split(' ')[0])}! 🎃</div>` : ''}
     <b>CATEGORIA ${S.idx + 1} / ${cs.length}</b><div class="prog"><i style="width:${(S.idx + 1) / cs.length * 100}%"></i></div>
     <div class="center" style="padding:8px 0"><div class="big" style="font-size:3.5rem">${c.emoji}</div><h1 style="font-size:2rem">${esc(c.name.toUpperCase())}</h1><p>Scegli il tuo preferito</p></div>
     <div class="grid">${parts.map(p => {
-      const self = p.id === me.id && !allow;
-      return `<div class="card ${self ? 'dis' : ''}" data-id="${p.id}" ${self ? '' : `onclick="pick('${p.id}')"`}><span class="chk">✓</span>${photo(p)}<b>${esc(p.name)}</b><span>${esc(p.costume)}</span>${self ? '<em>Questo sei tu</em>' : '<em class="sel">SELEZIONATO</em>'}</div>`;
+      const self = !allow && (p.members ? p.members.includes(me.id) : p.id === me.id);
+      return `<div class="card ${self ? 'dis' : ''}" data-id="${p.id}" ${self ? '' : `onclick="pick('${p.id}')"`}><span class="chk">✓</span>${p.members ? `<div class="duo">${p.members.map(m => photo(P.find(q => q.id === m))).join('')}</div>` : photo(p)}<b>${esc(p.name)}</b><span>${esc(p.costume)}</span>${self ? (p.members ? '<em>Siete voi</em>' : '<em>Questo sei tu</em>') : '<em class="sel">SELEZIONATO</em>'}</div>`;
     }).join('')}</div>
     <div class="dock"><button id="next" class="btn" hidden onclick="confirmVote()">${RD && S.idx + 1 >= cs.length ? 'INVIA I VOTI ✓' : 'CONFERMA VOTO →'}</button></div>`;
   },
@@ -39,12 +42,14 @@ const V = {
   },
   parts: () => head('👥 PARTECIPANTI', 'admin') +
     `<div><button class="btn" onclick="go('partForm')">+ AGGIUNGI PARTECIPANTE</button><button class="btn ghost" onclick="genCodes()">GENERA CODICI</button><button class="btn ghost" onclick="printCodes()">🖨️ STAMPA CODICI</button><button class="btn ghost" onclick="hatReset()">🎩 AZZERA CAPPELLO</button></div>` +
-    db.participants.map(p => `<div class="item"><div><b>${esc(p.name)}</b><br>${esc(p.costume)}<br>Codice: <code>${esc(p.code)}</code> ${p.voted ? '✅ ha votato' : ''}</div>
+    db.participants.map(p => `<div class="item"><div><b>${esc(p.name)}</b><br>${esc(p.costume)}${p.partner && find(p.partner) ? `<br>💑 in coppia con ${esc(find(p.partner).name)}` : ''}<br>Codice: <code>${esc(p.code)}</code> ${p.voted ? '✅ ha votato' : ''}</div>
     <div><button class="btn sm" onclick="go('partForm',{edit:'${p.id}'})">MODIFICA</button><button class="btn sm danger" onclick="delPart('${p.id}')">ELIMINA</button></div></div>`).join(''),
   partForm: () => {
     const p = S.edit ? find(S.edit) : {};
     return head(S.edit ? 'MODIFICA PARTECIPANTE' : 'NUOVO PARTECIPANTE', 'parts') + `<div class="form">
     <label>Nome<input id="fn" value="${esc(p.name)}"></label><label>Costume<input id="fc" value="${esc(p.costume)}"></label>
+    <label>Costume di coppia?<select id="fcp" onchange="$('#fpw').hidden=this.value!=='1'"><option value="0">No</option><option value="1" ${p.partner ? 'selected' : ''}>Sì, gareggia in coppia</option></select></label>
+    <label id="fpw" ${p.partner ? '' : 'hidden'}>Con chi?<select id="fpa">${db.participants.filter(x => x.id !== p.id && (!x.partner || x.partner === p.id)).map(x => `<option value="${x.id}" ${p.partner === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
     <label>Codice<input id="fk" value="${esc(p.code)}" autocapitalize="characters"></label>
     <label>Foto (facoltativa)</label>
     <div class="photoRow"><div class="pv" id="prev">${S.edit ? photo(p) : '<div class="ph">🎃</div>'}</div><div>
@@ -57,27 +62,26 @@ const V = {
     <div class="err" id="ferr"></div><button class="btn" onclick="savePart()">SALVA</button></div>`;
   },
   cats: () => head('🏆 CATEGORIE', 'admin') + `<button class="btn" onclick="go('catForm')">+ AGGIUNGI CATEGORIA</button>` +
-    db.categories.map((c, i) => `<div class="item"><div><b>${c.emoji} ${esc(c.name)}</b></div><div>
+    db.categories.map((c, i) => `<div class="item"><div><b>${c.emoji} ${esc(c.name)}</b>${c.kind === 'couple' ? ' 💑 solo coppie' : c.kind === 'overall' ? ' 👑 premio assoluto' : ''}</div><div>
     <button class="btn sm ghost" onclick="moveCat(${i},-1)">▲</button><button class="btn sm ghost" onclick="moveCat(${i},1)">▼</button>
     <button class="btn sm" onclick="go('catForm',{edit:'${c.id}'})">MODIFICA</button><button class="btn sm danger" onclick="delCat('${c.id}')">ELIMINA</button></div></div>`).join(''),
   catForm: () => {
     const c = S.edit ? db.categories.find(x => x.id === S.edit) : { emoji: '👻' };
     return head(S.edit ? 'MODIFICA CATEGORIA' : 'NUOVA CATEGORIA', 'cats') + `<div class="form">
     <label>Nome categoria<input id="fn" value="${esc(c.name)}"></label><label>Emoji<input id="fe" value="${esc(c.emoji)}"></label>
+    <label>Tipo di categoria<select id="fk2"><option value="normal">Normale (tutti i partecipanti)</option><option value="couple" ${c.kind === 'couple' ? 'selected' : ''}>Solo coppie (es. Miglior coppia)</option><option value="overall" ${c.kind === 'overall' ? 'selected' : ''}>Premio assoluto (miglior costume della serata)</option></select></label>
     <div class="err" id="ferr"></div><button class="btn" onclick="saveCat()">SALVA</button></div>`;
   },
   results: () => {
     const np = db.participants.length, nv = db.participants.filter(p => p.voted).length;
     const stat = (l, n) => `<div class="stat"><b>${n}</b>${l}</div>`;
-    const rank = db.participants.map(p => ({ p, n: db.votes.filter(v => v.candidate === p.id && db.categories.some(c => c.id === v.category)).length })).sort((a, b) => b.n - a.n);
-    return head('🏆 RISULTATI', 'admin') + (remote() ? '<button class="btn" onclick="pullVotes()">⬇️ AGGIORNA DAI FOGLI</button>' : '') + `<div class="stats">${stat('PARTECIPANTI', np)}${stat('HANNO VOTATO', nv)}${stat('NON HANNO VOTATO', np - nv)}${stat('VOTI TOTALI', db.votes.length)}${stat('CATEGORIE', db.categories.length)}</div>` +
+    return head('🏆 RISULTATI', 'admin') + (remote() ? '<button class="btn" onclick="pullVotes()">⬇️ AGGIORNA DAI FOGLI</button>' : '') + `<div class="stats">${stat('PARTECIPANTI', np)}${stat('HANNO VOTATO', nv)}${stat('NON HANNO VOTATO', np - nv)}${stat('VOTI TOTALI', db.votes.length)}${stat('CATEGORIE', db.categories.length)}</div>` + heroPanels() +
       db.categories.map(c => {
-        const t = tally(c.id), max = Math.max(1, ...t.map(x => x.n)), tot = t.reduce((s, x) => s + x.n, 0);
+        const t = tally(c), max = Math.max(1, ...t.map(x => x.n)), tot = t.reduce((s, x) => s + x.n, 0);
         return `<section class="panel"><h3>${c.emoji} ${esc(c.name.toUpperCase())}</h3>` +
           t.map((x, i) => `<div class="row"><span>${x.n && i < 3 ? ['🥇', '🥈', '🥉'][i] : ''} ${esc(x.p.name)}</span><div class="bar"><i style="width:${x.n / max * 100}%"></i></div><b>${x.n}</b></div>`).join('') +
           `${t[0] && t[0].n ? `<p class="win">👑 Vincitore: ${esc(t[0].p.name)}</p>` : ''}<p class="muted">Totale voti: ${tot}</p></section>`;
-      }).join('') +
-      `<section class="panel"><h3>👑 CLASSIFICA GENERALE</h3>` + rank.map((x, i) => `<div class="row"><span style="flex:1">${['🥇', '🥈', '🥉'][i] || (i + 1) + '°'} ${esc(x.p.name)}</span><b>${x.n} voti</b></div>`).join('') + `</section>`;
+      }).join('');
   },
   settings: () => {
     const s = db.settings;
@@ -111,9 +115,9 @@ function pick(id) {
 }
 function confirmVote() {
   if (RD) return remoteVote();
-  const p = find(S.voter), c = cats()[S.idx];
+  const p = find(S.voter), c = cats()[S.idx], cd = c && candsFor(c).find(x => x.id === S.sel);
   if (!db.settings.open) return go('closed');
-  if (!p || p.voted || !c || !find(S.sel) || (S.sel === p.id && !db.settings.allowSelfVote) || db.votes.some(v => v.voter === p.id && v.category === c.id))
+  if (!p || p.voted || !c || !cd || (!db.settings.allowSelfVote && (cd.members ? cd.members.includes(p.id) : cd.id === p.id)) || db.votes.some(v => v.voter === p.id && v.category === c.id))
     return go('home', { err: 'Errore nel voto, riprova' });
   db.votes.push({ voter: p.id, category: c.id, candidate: S.sel });
   if (S.idx + 1 >= cats().length) { p.voted = true; save(); return go('done', { voter: null }); }
@@ -121,7 +125,13 @@ function confirmVote() {
 }
 
 /* ---- Admin ---- */
-const tally = cid => db.participants.map(p => ({ p, n: db.votes.filter(v => v.category === cid && v.candidate === p.id).length })).sort((a, b) => b.n - a.n);
+const tally = c => (c.kind === 'couple' ? couples() : db.participants).map(p => ({ p, n: db.votes.filter(v => v.category === c.id && v.candidate === p.id).length })).sort((a, b) => b.n - a.n);
+function heroPanels() { // premio assoluto: categoria a sé, non una somma di punti
+  return db.categories.filter(c => c.kind === 'overall').map(c => {
+    const t = tally(c), top = t.filter(x => x.n > 0 && x.n === t[0].n);
+    return top.length ? `<section class="panel hero"><h3>🏆 ${c.emoji} ${esc(c.name.toUpperCase())}</h3><div class="winner">${top.map(x => esc(x.p.name)).join(' · ')}</div><p class="muted">${t[0].n} voti</p></section>` : '';
+  }).join('');
+}
 function readSettings() {
   const e = $('#se'), a = $('#sa');
   if (e && e.value.trim()) db.settings.eventName = e.value.trim();
@@ -152,21 +162,26 @@ function savePart() {
   if (!n || !k) return e.textContent = 'Nome e codice sono obbligatori';
   if (k === db.settings.adminCode.toUpperCase() || db.participants.some(p => p.id !== S.edit && p.code.toUpperCase() === k)) return e.textContent = 'Codice già in uso';
   const d = { name: n, costume: $('#fc').value.trim(), code: k, photo: $('#fp').value.trim() };
-  if (S.edit) Object.assign(find(S.edit), d); else db.participants.push({ id: 'p' + Date.now(), ...d, voted: false });
+  const id = S.edit || 'p' + Date.now(), np = $('#fcp').value === '1' && find($('#fpa').value) ? $('#fpa').value : '';
+  if (S.edit) Object.assign(find(S.edit), d); else db.participants.push({ id, ...d, voted: false });
+  db.participants.forEach(x => { if (x.partner === id) x.partner = ''; }); // il legame è sempre reciproco
+  find(id).partner = np;
+  if (np) { const t = find(np); if (t.partner && t.partner !== id) { const o = find(t.partner); if (o) o.partner = ''; } t.partner = id; }
   save(); go('parts');
 }
 function delPart(id) {
   const p = find(id);
   if (!confirm(`Sei sicuro di voler eliminare ${p.name}?`)) return;
   db.participants = db.participants.filter(x => x.id !== id);
+  db.participants.forEach(x => { if (x.partner === id) x.partner = ''; });
   db.votes = db.votes.filter(v => v.voter !== id && v.candidate !== id);
   save(); render();
 }
 function saveCat() {
-  const n = $('#fn').value.trim(), e = $('#fe').value.trim() || '🎃';
+  const n = $('#fn').value.trim(), e = $('#fe').value.trim() || '🎃', k = $('#fk2').value;
   if (!n) return $('#ferr').textContent = 'Inserisci il nome della categoria';
-  if (S.edit) Object.assign(db.categories.find(c => c.id === S.edit), { name: n, emoji: e });
-  else db.categories.push({ id: 'cat' + Date.now(), name: n, emoji: e, active: true });
+  if (S.edit) Object.assign(db.categories.find(c => c.id === S.edit), { name: n, emoji: e, kind: k });
+  else db.categories.push({ id: 'cat' + Date.now(), name: n, emoji: e, kind: k, active: true });
   save(); go('cats');
 }
 function delCat(id) {
@@ -236,9 +251,9 @@ async function remoteVote() {
   } catch (e) { b.disabled = false; b.textContent = 'RIPROVA INVIO →'; alert('Errore di connessione: i tuoi voti NON sono ancora stati inviati. Premi di nuovo il pulsante.'); }
 }
 async function syncConfig() {
-  const s = db.settings, parts = db.participants.map(p => ({ id: p.id, name: p.name, costume: p.costume, code: p.code, photo: (p.photo || '').length <= 30000 ? p.photo : '' }));
+  const s = db.settings, parts = db.participants.map(p => ({ id: p.id, name: p.name, costume: p.costume, code: p.code, partner: p.partner || '', photo: (p.photo || '').length <= 30000 ? p.photo : '' }));
   try {
-    const r = await api('push', { adminCode: s.adminCode, config: { eventName: s.eventName, allowSelfVote: !!s.allowSelfVote, open: !!s.open, participants: parts, categories: cats().map(c => ({ id: c.id, name: c.name, emoji: c.emoji })) } });
+    const r = await api('push', { adminCode: s.adminCode, config: { eventName: s.eventName, allowSelfVote: !!s.allowSelfVote, open: !!s.open, participants: parts, categories: cats().map(c => ({ id: c.id, name: c.name, emoji: c.emoji, kind: c.kind || 'normal' })) } });
     if (r.error === 'auth') return go('admin', { msg: '❌ Il foglio ha già un codice admin diverso da quello dell\'app' });
     if (!r.ok) throw 0;
     go('admin', { msg: '✅ Configurazione pubblicata su Fogli Google' });
@@ -249,7 +264,7 @@ async function pullVotes() {
     const r = await api('votes', { adminCode: db.settings.adminCode });
     if (r.error === 'auth') return go('admin', { msg: '❌ Codice admin non accettato dal foglio (pubblica prima la configurazione)' });
     if (!r.votes) throw 0;
-    db.votes = r.votes.filter(v => find(v.voter) && find(v.candidate) && db.categories.some(c => c.id === v.category));
+    db.votes = r.votes.filter(v => find(v.voter) && (find(v.candidate) || couples().some(x => x.id === v.candidate)) && db.categories.some(c => c.id === v.category));
     const cs = cats();
     db.participants.forEach(p => p.voted = cs.length > 0 && cs.every(c => db.votes.some(v => v.voter === p.id && v.category === c.id)));
     save(); go('results');
@@ -263,7 +278,7 @@ function importData(inp) {
       const d = JSON.parse(r.result);
       if (!d.settings || !Array.isArray(d.participants) || !Array.isArray(d.categories) || !Array.isArray(d.votes)) throw 0;
       if (!confirm('Sostituire tutti i dati attuali con il backup?')) return;
-      db = d; save(); go('admin', { msg: 'Backup importato' });
+      db = migrate(d); save(); go('admin', { msg: 'Backup importato' });
     } catch (e) { alert('File di backup non valido'); }
   };
   r.readAsText(f);

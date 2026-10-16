@@ -1,7 +1,7 @@
 // Dati iniziali (usati solo al primo avvio). Poi tutto vive nel localStorage.
 const KEY = 'halloweenAwards';
 // Per votare da telefono: incolla qui l'URL /exec di Google Apps Script. Vuoto = app solo locale.
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxgJl08pxxyUoHWIC7vwakd1PJNDWPSpl3vNjgzlcs-oScIRVj1vefopJ5vEaTkJ7HCfw/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw5bzJfm6HpdSexW44urEqH0q0ZzCAGOf6xcejyFStp-iEgGP1PG6whqf9W9euq9UVF/exec';
 const DEFAULT = {
   settings: { eventName: 'Halloween Awards 2026', adminCode: 'ADMIN2026', allowSelfVote: false, open: true },
   participants: [
@@ -20,8 +20,14 @@ const DEFAULT = {
   votes: []
 };
 function load() {
-  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.settings) return d; } catch (e) {}
-  return JSON.parse(JSON.stringify(DEFAULT));
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.settings) return migrate(d); } catch (e) {}
+  return migrate(JSON.parse(JSON.stringify(DEFAULT)));
+}
+// Aggiunge i campi nuovi ai dati vecchi: tipo categoria (normal / couple / overall) e partner di coppia.
+function migrate(d) {
+  d.categories.forEach(c => { if (!c.kind) c.kind = /della serata|assolut/i.test(c.name) ? 'overall' : 'normal'; });
+  d.participants.forEach(p => { if (p.partner === undefined) p.partner = ''; });
+  return d;
 }
 function save() { localStorage.setItem(KEY, JSON.stringify(db)); }
 let db = load();

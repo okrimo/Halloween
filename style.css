@@ -55,3 +55,6 @@ code{background:#150c22;padding:2px 8px;border-radius:6px;color:var(--or)}
 .stage video,.stage canvas{display:block;width:100%}.stage canvas{position:absolute;inset:0;height:100%}
 .say{min-height:3.5em;font-size:1.3rem;margin:14px auto;max-width:640px;font-style:italic}
 .codebig{font-size:4rem;font-weight:900;letter-spacing:.15em;color:var(--or);font-family:Georgia,serif}
+select{width:100%;min-height:60px;font-size:1.2rem;padding:0 12px;border-radius:14px;border:2px solid var(--pur2);background:#150c22;color:var(--w);margin:8px 0}
+.duo{display:flex;gap:6px;width:100%}.duo img,.duo .ph{width:50%;height:150px;margin:0}
+.hero{text-align:center;border:2px solid var(--or)}.winner{font-family:Georgia,serif;font-size:2.4rem;color:var(--or)}
