@@ -1,9 +1,9 @@
 const $ = s => document.querySelector(s), ICONS = ['🎃', '👻', '🦇', '🕷️', '💀'];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const cats = () => db.categories.filter(c => c.active !== false && (c.kind !== 'couple' || couples().length));
+const cats = () => db.categories.filter(c => c.active !== false && (c.kind !== 'couple' || couples().length) && (c.kind !== 'makeup' || db.participants.some(p => p.makeup)));
 // Coppie = due partecipanti che si sono scelti a vicenda. id coppia = "idA|idB"
 const couples = () => { const o = []; db.participants.forEach(a => { const b = find(a.partner); if (b && b.partner === a.id && a.id < b.id) o.push({ id: a.id + '|' + b.id, name: a.name + ' & ' + b.name, costume: a.costume === b.costume ? a.costume : a.costume + ' & ' + b.costume, members: [a.id, b.id] }); }); return o; };
-const candsFor = c => c.kind === 'couple' ? (RD ? RD.couples : couples()) : (RD ? RD.candidates : db.participants);
+const candsFor = c => { const L = RD ? RD.candidates : db.participants; return c.kind === 'couple' ? (RD ? RD.couples : couples()) : c.kind === 'makeup' ? L.filter(p => p.makeup) : L; };
 const find = id => db.participants.find(p => p.id === id);
 let S = { view: 'home' }, RD = null; // RD = dati ricevuti dal foglio durante una votazione da telefono
 function go(v, x = {}) { S = { voter: S.voter, idx: S.idx, sel: S.sel, ...x, view: v }; render(); scrollTo(0, 0); }
@@ -42,7 +42,7 @@ const V = {
   },
   parts: () => head('👥 PARTECIPANTI', 'admin') +
     `<div><button class="btn" onclick="go('partForm')">+ AGGIUNGI PARTECIPANTE</button><button class="btn ghost" onclick="genCodes()">GENERA CODICI</button><button class="btn ghost" onclick="printCodes()">🖨️ STAMPA CODICI</button><button class="btn ghost" onclick="hatReset()">🎩 AZZERA CAPPELLO</button></div>` +
-    db.participants.map(p => `<div class="item"><div><b>${esc(p.name)}</b><br>${esc(p.costume)}${p.partner && find(p.partner) ? `<br>💑 in coppia con ${esc(find(p.partner).name)}` : ''}<br>Codice: <code>${esc(p.code)}</code> ${p.voted ? '✅ ha votato' : ''}</div>
+    db.participants.map(p => `<div class="item"><div><b>${esc(p.name)}</b><br>${esc(p.costume)}${p.partner && find(p.partner) ? `<br>💑 in coppia con ${esc(find(p.partner).name)}` : ''}${p.makeup ? '<br>💄 truccato/a' : ''}<br>Codice: <code>${esc(p.code)}</code> ${p.voted ? '✅ ha votato' : ''}</div>
     <div><button class="btn sm" onclick="go('partForm',{edit:'${p.id}'})">MODIFICA</button><button class="btn sm danger" onclick="delPart('${p.id}')">ELIMINA</button></div></div>`).join(''),
   partForm: () => {
     const p = S.edit ? find(S.edit) : {};
@@ -50,6 +50,7 @@ const V = {
     <label>Nome<input id="fn" value="${esc(p.name)}"></label><label>Costume<input id="fc" value="${esc(p.costume)}"></label>
     <label>Costume di coppia?<select id="fcp" onchange="$('#fpw').hidden=this.value!=='1'"><option value="0">No</option><option value="1" ${p.partner ? 'selected' : ''}>Sì, gareggia in coppia</option></select></label>
     <label id="fpw" ${p.partner ? '' : 'hidden'}>Con chi?<select id="fpa">${db.participants.filter(x => x.id !== p.id && (!x.partner || x.partner === p.id)).map(x => `<option value="${x.id}" ${p.partner === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+    <label>Truccato/a?<select id="fmk"><option value="0">No</option><option value="1" ${p.makeup ? 'selected' : ''}>Sì, partecipa al miglior trucco</option></select></label>
     <label>Codice<input id="fk" value="${esc(p.code)}" autocapitalize="characters"></label>
     <label>Foto (facoltativa)</label>
     <div class="photoRow"><div class="pv" id="prev">${S.edit ? photo(p) : '<div class="ph">🎃</div>'}</div><div>
@@ -62,26 +63,26 @@ const V = {
     <div class="err" id="ferr"></div><button class="btn" onclick="savePart()">SALVA</button></div>`;
   },
   cats: () => head('🏆 CATEGORIE', 'admin') + `<button class="btn" onclick="go('catForm')">+ AGGIUNGI CATEGORIA</button>` +
-    db.categories.map((c, i) => `<div class="item"><div><b>${c.emoji} ${esc(c.name)}</b>${c.kind === 'couple' ? ' 💑 solo coppie' : c.kind === 'overall' ? ' 👑 premio assoluto' : ''}</div><div>
+    db.categories.map((c, i) => `<div class="item"><div><b>${c.emoji} ${esc(c.name)}</b>${c.kind === 'couple' ? ' 💑 solo coppie' : c.kind === 'makeup' ? ' 💄 solo truccati' : c.kind === 'overall' ? ' 👑 premio assoluto' : ''}</div><div>
     <button class="btn sm ghost" onclick="moveCat(${i},-1)">▲</button><button class="btn sm ghost" onclick="moveCat(${i},1)">▼</button>
     <button class="btn sm" onclick="go('catForm',{edit:'${c.id}'})">MODIFICA</button><button class="btn sm danger" onclick="delCat('${c.id}')">ELIMINA</button></div></div>`).join(''),
   catForm: () => {
     const c = S.edit ? db.categories.find(x => x.id === S.edit) : { emoji: '👻' };
     return head(S.edit ? 'MODIFICA CATEGORIA' : 'NUOVA CATEGORIA', 'cats') + `<div class="form">
     <label>Nome categoria<input id="fn" value="${esc(c.name)}"></label><label>Emoji<input id="fe" value="${esc(c.emoji)}"></label>
-    <label>Tipo di categoria<select id="fk2"><option value="normal">Normale (tutti i partecipanti)</option><option value="couple" ${c.kind === 'couple' ? 'selected' : ''}>Solo coppie (es. Miglior coppia)</option><option value="overall" ${c.kind === 'overall' ? 'selected' : ''}>Premio assoluto (miglior costume della serata)</option></select></label>
+    <label>Tipo di categoria<select id="fk2"><option value="normal">Normale (tutti i partecipanti)</option><option value="couple" ${c.kind === 'couple' ? 'selected' : ''}>Solo coppie (es. Miglior coppia)</option><option value="makeup" ${c.kind === 'makeup' ? 'selected' : ''}>Solo truccati (es. Miglior trucco)</option><option value="overall" ${c.kind === 'overall' ? 'selected' : ''}>Premio assoluto (miglior costume della serata)</option></select></label>
     <div class="err" id="ferr"></div><button class="btn" onclick="saveCat()">SALVA</button></div>`;
   },
   results: () => {
     const np = db.participants.length, nv = db.participants.filter(p => p.voted).length;
-    const stat = (l, n) => `<div class="stat"><b>${n}</b>${l}</div>`;
-    return head('🏆 RISULTATI', 'admin') + (remote() ? '<button class="btn" onclick="pullVotes()">⬇️ AGGIORNA DAI FOGLI</button>' : '') + `<div class="stats">${stat('PARTECIPANTI', np)}${stat('HANNO VOTATO', nv)}${stat('NON HANNO VOTATO', np - nv)}${stat('VOTI TOTALI', db.votes.length)}${stat('CATEGORIE', db.categories.length)}</div>` + heroPanels() +
+    const stat = (l, n, k) => `<div class="stat" ${k ? `onclick="showStat('${k}')" style="cursor:pointer;border:2px solid var(--pur2)"` : ''}><b>${n}</b>${l}${k ? ' ▾' : ''}</div>`;
+    return head('🏆 RISULTATI', 'admin') + (remote() ? '<button class="btn" onclick="pullVotes()">⬇️ AGGIORNA DAI FOGLI</button>' : '') + `<div class="stats">${stat('PARTECIPANTI', np, 'all')}${stat('HANNO VOTATO', nv, 'voted')}${stat('NON HANNO VOTATO', np - nv, 'not')}${stat('VOTI TOTALI', db.votes.length)}${stat('CATEGORIE', db.categories.length)}</div><div id="statlist"></div>` +
       db.categories.map(c => {
         const t = tally(c), max = Math.max(1, ...t.map(x => x.n)), tot = t.reduce((s, x) => s + x.n, 0);
         return `<section class="panel"><h3>${c.emoji} ${esc(c.name.toUpperCase())}</h3>` +
           t.map((x, i) => `<div class="row"><span>${x.n && i < 3 ? ['🥇', '🥈', '🥉'][i] : ''} ${esc(x.p.name)}</span><div class="bar"><i style="width:${x.n / max * 100}%"></i></div><b>${x.n}</b></div>`).join('') +
           `${t[0] && t[0].n ? `<p class="win">👑 Vincitore: ${esc(t[0].p.name)}</p>` : ''}<p class="muted">Totale voti: ${tot}</p></section>`;
-      }).join('');
+      }).join('') + heroPanels(); // premio assoluto in fondo
   },
   settings: () => {
     const s = db.settings;
@@ -125,7 +126,13 @@ function confirmVote() {
 }
 
 /* ---- Admin ---- */
-const tally = c => (c.kind === 'couple' ? couples() : db.participants).map(p => ({ p, n: db.votes.filter(v => v.category === c.id && v.candidate === p.id).length })).sort((a, b) => b.n - a.n);
+const tally = c => (c.kind === 'couple' ? couples() : c.kind === 'makeup' ? db.participants.filter(p => p.makeup) : db.participants).map(p => ({ p, n: db.votes.filter(v => v.category === c.id && v.candidate === p.id).length })).sort((a, b) => b.n - a.n);
+function showStat(k) { // tocca un numero delle statistiche per vedere i nomi (tocca di nuovo per chiudere)
+  const L = { all: ['PARTECIPANTI', db.participants], voted: ['HANNO VOTATO', db.participants.filter(p => p.voted)], not: ['NON HANNO VOTATO', db.participants.filter(p => !p.voted)] }[k], el = $('#statlist');
+  if (el.dataset.k === k) { el.dataset.k = ''; return el.innerHTML = ''; }
+  el.dataset.k = k;
+  el.innerHTML = `<section class="panel"><h3>${L[0]} (${L[1].length})</h3>${L[1].length ? L[1].map(p => `<div class="row"><span style="flex:1">${k === 'all' ? (p.voted ? '✅ ' : '⏳ ') : ''}${esc(p.name)}</span><span class="muted">${esc(p.costume)}</span></div>`).join('') : '<p class="muted">Nessuno</p>'}</section>`;
+}
 function heroPanels() { // premio assoluto: categoria a sé, non una somma di punti
   return db.categories.filter(c => c.kind === 'overall').map(c => {
     const t = tally(c), top = t.filter(x => x.n > 0 && x.n === t[0].n);
@@ -161,7 +168,7 @@ function savePart() {
   const n = $('#fn').value.trim(), k = $('#fk').value.trim().toUpperCase(), e = $('#ferr');
   if (!n || !k) return e.textContent = 'Nome e codice sono obbligatori';
   if (k === db.settings.adminCode.toUpperCase() || db.participants.some(p => p.id !== S.edit && p.code.toUpperCase() === k)) return e.textContent = 'Codice già in uso';
-  const d = { name: n, costume: $('#fc').value.trim(), code: k, photo: $('#fp').value.trim() };
+  const d = { name: n, costume: $('#fc').value.trim(), code: k, photo: $('#fp').value.trim(), makeup: $('#fmk').value === '1' };
   const id = S.edit || 'p' + Date.now(), np = $('#fcp').value === '1' && find($('#fpa').value) ? $('#fpa').value : '';
   if (S.edit) Object.assign(find(S.edit), d); else db.participants.push({ id, ...d, voted: false });
   db.participants.forEach(x => { if (x.partner === id) x.partner = ''; }); // il legame è sempre reciproco
@@ -251,7 +258,7 @@ async function remoteVote() {
   } catch (e) { b.disabled = false; b.textContent = 'RIPROVA INVIO →'; alert('Errore di connessione: i tuoi voti NON sono ancora stati inviati. Premi di nuovo il pulsante.'); }
 }
 async function syncConfig() {
-  const s = db.settings, parts = db.participants.map(p => ({ id: p.id, name: p.name, costume: p.costume, code: p.code, partner: p.partner || '', photo: (p.photo || '').length <= 30000 ? p.photo : '' }));
+  const s = db.settings, parts = db.participants.map(p => ({ id: p.id, name: p.name, costume: p.costume, code: p.code, partner: p.partner || '', makeup: !!p.makeup, photo: (p.photo || '').length <= 30000 ? p.photo : '' }));
   try {
     const r = await api('push', { adminCode: s.adminCode, config: { eventName: s.eventName, allowSelfVote: !!s.allowSelfVote, open: !!s.open, participants: parts, categories: cats().map(c => ({ id: c.id, name: c.name, emoji: c.emoji, kind: c.kind || 'normal' })) } });
     if (r.error === 'auth') return go('admin', { msg: '❌ Il foglio ha già un codice admin diverso da quello dell\'app' });
