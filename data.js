@@ -1,7 +1,7 @@
 // Dati iniziali (usati solo al primo avvio). Poi tutto vive nel localStorage.
 const KEY = 'halloweenAwards';
 // Per votare da telefono: incolla qui l'URL /exec di Google Apps Script. Vuoto = app solo locale.
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzWp6g6ts19Q6wBY32rFvRgM2NgsOhn4FlargWFTG3LsT8rFi686rCCzToqAaaTu0Bd/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzt12uLvr_dFUylU-06l3Q_y8qGUeySKzA8sAOt7PdEJNMEGpr8OWrTuGlN_VWNwE1y/exec';
 const DEFAULT = {
   settings: { eventName: 'Halloween Awards 2026', adminCode: 'ADMIN2026', allowSelfVote: false, open: true },
   participants: [
