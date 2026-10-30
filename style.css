@@ -58,3 +58,9 @@ code{background:#150c22;padding:2px 8px;border-radius:6px;color:var(--or)}
 select{width:100%;min-height:60px;font-size:1.2rem;padding:0 12px;border-radius:14px;border:2px solid var(--pur2);background:#150c22;color:var(--w);margin:8px 0}
 .duo{display:flex;gap:6px;width:100%}.duo img,.duo .ph{width:50%;height:150px;margin:0}
 .hero{text-align:center;border:2px solid var(--or)}.winner{font-family:Georgia,serif;font-size:2.4rem;color:var(--or)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.cer-row{display:flex;align-items:center;gap:16px;background:var(--pur);border-radius:18px;padding:16px 20px;margin:10px 0;font-size:1.5rem}
+.cer-row .pos{font-size:2.4rem;font-weight:900;color:var(--or);min-width:70px}
+.cer-row.new{border:2px solid var(--or);animation:pop .6s ease}
+.cer-row.first{background:linear-gradient(90deg,var(--red),var(--pur2));font-size:2rem}
+@keyframes pop{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}

@@ -33,8 +33,8 @@ const V = {
   },
   admin: () => {
     const o = db.settings.open;
-    const items = [['👥', 'PARTECIPANTI', "go('parts')"], ['🏆', 'CATEGORIE', "go('cats')"], ['📊', 'RISULTATI', "go('results')"], ['⚙️', 'IMPOSTAZIONI', "go('settings')"], ['🎩', 'CAPPELLO PARLANTE', "go('hat')"],
-      ['💾', 'ESPORTA DATI', 'exportData()'], ['📂', 'IMPORTA DATI', "$('#imp').click()"], ['⚠️', 'RESET VOTI', 'resetVotes()'], ['🚪', 'ESCI', "go('home',{voter:null})"]].concat(remote() ? [['☁️', 'PUBBLICA SU FOGLI', 'syncConfig()'], ['⬇️', 'SCARICA VOTI', 'pullVotes()']] : []);
+    const items = [['👥', 'PARTECIPANTI', "go('parts')"], ['🏆', 'CATEGORIE', "go('cats')"], ['📊', 'RISULTATI', "go('results')"], ['🎬', 'PRESENTAZIONE', 'cerStart()'], ['⚙️', 'IMPOSTAZIONI', "go('settings')"], ['🎩', 'CAPPELLO PARLANTE', "go('hat')"],
+      ['💾', 'ESPORTA DATI', 'exportData()'], ['📂', 'IMPORTA DATI', "$('#imp').click()"], ['⚠️', 'RESET VOTI', 'resetVotes()'], ['🚪', 'ESCI', "go('home',{voter:null})"]].concat(remote() ? [['☁️', 'PUBBLICA SU FOGLI', 'syncConfig()'], ['⬇️', 'SCARICA VOTI', 'pullVotes()'], db.settings.resultsPublic ? ['🙈', 'NASCONDI RISULTATI', "flip('resultsPublic','admin')"] : ['📢', 'PUBBLICA RISULTATI', "flip('resultsPublic','admin')"]] : []);
     return `${S.msg ? `<div class="ok">${S.msg}</div>` : ''}<div class="center"><div class="big">🎃</div><h1>ADMIN PANEL</h1>
     <div class="state">${o ? '🟢 VOTAZIONE APERTA' : '🔴 VOTAZIONE CHIUSA'}</div><button class="btn" onclick="flip('open','admin')">${o ? 'CHIUDI VOTAZIONI' : 'RIAPRI VOTAZIONI'}</button></div>
     <div class="grid menu">${items.map(i => `<button onclick="${i[2]}"><span>${i[0]}</span>${i[1]}</button>`).join('')}</div>
@@ -87,9 +87,10 @@ const V = {
   settings: () => {
     const s = db.settings;
     return head('⚙️ IMPOSTAZIONI', 'admin') + `<div class="form"><label>Nome evento<input id="se" value="${esc(s.eventName)}"></label><label>Codice admin<input id="sa" value="${esc(s.adminCode)}"></label>
+    <label>Fine del contest (facoltativa)<input id="sd" type="datetime-local" value="${s.endAt ? new Date(new Date(s.endAt) - new Date(s.endAt).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}"></label><p class="muted">Dopo questa data e ora la votazione si chiude e chi apre il link vede i risultati (serve Fogli Google).</p>
     <label>Voto a se stessi<br><button class="btn ${s.allowSelfVote ? '' : 'ghost'}" onclick="flip('allowSelfVote','settings')">${s.allowSelfVote ? 'ON' : 'OFF'}</button></label>
     <label>Votazione<br><button class="btn ${s.open ? '' : 'ghost'}" onclick="flip('open','settings')">${s.open ? '🟢 APERTA' : '🔴 CHIUSA'}</button></label>
-    <div class="err" id="ferr"></div><button class="btn" onclick="readSettings();go('admin',{msg:'Impostazioni salvate'})">SALVA</button></div>`;
+    <div class="err" id="ferr"></div><button class="btn" onclick="readSettings();remote()?syncConfig():go('admin',{msg:'Impostazioni salvate'})">SALVA</button></div>`;
   }
 };
 function render() { $('#app').innerHTML = V[S.view](); }
@@ -143,9 +144,10 @@ function readSettings() {
   const e = $('#se'), a = $('#sa');
   if (e && e.value.trim()) db.settings.eventName = e.value.trim();
   if (a && a.value.trim()) db.settings.adminCode = a.value.trim();
+  const dt = $('#sd'); if (dt) db.settings.endAt = dt.value ? new Date(dt.value).toISOString() : '';
   save();
 }
-function flip(k, back) { if (back === 'settings') readSettings(); db.settings[k] = !db.settings[k]; save(); if (remote() && k === 'open' && back === 'admin') return syncConfig(); go(back); }
+function flip(k, back) { if (back === 'settings') readSettings(); db.settings[k] = !db.settings[k]; save(); if (remote() && (k === 'open' || k === 'resultsPublic') && back === 'admin') return syncConfig(); go(back); }
 function loadPhoto(inp) {
   const f = inp.files[0]; if (!f) return;
   const r = new FileReader();
@@ -231,6 +233,21 @@ async function api(action, data = {}) {
   const r = await fetch(SHEETS_URL, { method: 'POST', body: JSON.stringify({ action, ...data }) });
   return r.json();
 }
+const pubPanel = c => {
+  const max = Math.max(1, ...c.rows.map(x => x.n)), tot = c.rows.reduce((s, x) => s + x.n, 0), top = c.rows.filter(x => x.n > 0 && x.n === c.rows[0].n), big = c.kind === 'overall';
+  return `<section class="panel ${big ? 'hero' : ''}"><h3>${esc(c.emoji)} ${esc(c.name.toUpperCase())}</h3>` +
+    (top.length ? `<div class="winner" ${big ? '' : 'style="font-size:1.6rem"'}>👑 ${top.map(x => esc(x.name)).join(' · ')}</div>` : '<p class="muted">Nessun voto</p>') +
+    c.rows.map((x, i) => `<div class="row"><span>${x.n && i < 3 ? ['🥇', '🥈', '🥉'][i] : ''} ${esc(x.name)}</span><div class="bar"><i style="width:${x.n / max * 100}%"></i></div><b>${x.n}</b></div>`).join('') +
+    `<p class="muted">Totale voti: ${tot}</p></section>`;
+};
+V.public = () => { const r = S.pub; // premio assoluto sempre in fondo
+  return `<div class="center"><div class="big">🏆</div><h1>RISULTATI</h1><p class="muted">${esc(r.eventName)}</p></div>` +
+    r.categories.filter(c => c.kind !== 'overall').concat(r.categories.filter(c => c.kind === 'overall')).map(pubPanel).join('') +
+    `<div class="center"><button class="btn ghost" onclick="go('home')">🔑 ACCEDI</button></div>`;
+};
+async function loadPublic() { // all'apertura del link: se il contest è finito mostra i risultati
+  try { const r = await api('results'); if (r.categories && S.view === 'home') go('public', { pub: r }); } catch (e) {}
+}
 async function remoteLogin(c) {
   if (!c) return go('home', { err: '❌ Codice non valido' });
   $('.err').textContent = 'Attendi…';
@@ -260,7 +277,7 @@ async function remoteVote() {
 async function syncConfig() {
   const s = db.settings, parts = db.participants.map(p => ({ id: p.id, name: p.name, costume: p.costume, code: p.code, partner: p.partner || '', makeup: !!p.makeup, photo: (p.photo || '').length <= 30000 ? p.photo : '' }));
   try {
-    const r = await api('push', { adminCode: s.adminCode, config: { eventName: s.eventName, allowSelfVote: !!s.allowSelfVote, open: !!s.open, participants: parts, categories: cats().map(c => ({ id: c.id, name: c.name, emoji: c.emoji, kind: c.kind || 'normal' })) } });
+    const r = await api('push', { adminCode: s.adminCode, config: { eventName: s.eventName, allowSelfVote: !!s.allowSelfVote, open: !!s.open, resultsPublic: !!s.resultsPublic, endAt: s.endAt || '', participants: parts, categories: cats().map(c => ({ id: c.id, name: c.name, emoji: c.emoji, kind: c.kind || 'normal' })) } });
     if (r.error === 'auth') return go('admin', { msg: '❌ Il foglio ha già un codice admin diverso da quello dell\'app' });
     if (!r.ok) throw 0;
     go('admin', { msg: '✅ Configurazione pubblicata su Fogli Google' });
@@ -291,3 +308,4 @@ function importData(inp) {
   r.readAsText(f);
 }
 render();
+if (remote()) loadPublic();

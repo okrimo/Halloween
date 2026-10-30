@@ -1,23 +1,23 @@
-# 🎃 Halloween Awards
+# 🎃 Halloween Awards – versione GitHub Pages + Fogli Google
 
-App di votazione per una festa, 100% locale (HTML + CSS + JavaScript + localStorage).
+## Pubblicazione (una tantum)
+1. Crea un Foglio Google → Estensioni → Apps Script → incolla `apps-script/Code.gs`.
+2. Distribuisci → Nuova distribuzione → ingranaggio → **App web** → Esegui come **Me** → Accesso **Chiunque** → Distribuisci e autorizza.
+3. Copia l'URL che finisce con `/exec` e incollalo in `data.js` al posto di `SHEETS_URL = ''`.
+4. Carica tutti i file nella radice del repository (repository pubblico), poi Settings → Pages → branch → `/ (root)`.
+5. Il link `https://TUO-UTENTE.github.io/REPO/` è quello da dare agli invitati.
 
-## Come avviare
-Non serve installare nulla: apri `index.html` nel browser del tablet.
+Se aggiorni un repository già pubblicato, NON sovrascrivere `data.js` (contiene il tuo URL). Se cambi `Code.gs` ripubblicalo come **Nuova versione**.
 
-## Come utilizzare
-1. Apri l'app sul tablet e inserisci il codice admin (predefinito: `ADMIN2026`).
-2. Configura partecipanti (anche "Genera codici") e categorie.
-3. Con "Stampa codici" prepara i biglietti da distribuire.
-4. Controlla che la votazione sia aperta.
-5. Ogni invitato inserisce il proprio codice e vota tutte le categorie (un codice = una sola votazione).
-6. A fine serata l'admin apre "Risultati": vincitori, grafici, classifica generale.
+## Durante la festa
+- Admin: configura partecipanti/categorie, poi **PUBBLICA SU FOGLI** (ripeti dopo ogni modifica). Usa sempre lo stesso dispositivo.
+- Invitati: aprono il link, inseriscono il codice e votano (i voti partono tutti insieme alla fine).
+- Admin: **SCARICA VOTI** per controllare chi ha votato; i numeri nelle statistiche sono cliccabili.
 
-Le foto sono facoltative: indica un percorso relativo (es. `foto/mario.jpg`, con la cartella `foto` accanto a `index.html`) o un URL.
-Per modificare i dati iniziali (solo al primo avvio) edita `data.js`.
+## Fine del contest
+- In Impostazioni puoi indicare data e ora di fine: da quel momento non si vota più e chi apre il link vede i risultati.
+- Oppure usa **PUBBLICA RISULTATI** nel pannello admin (e **NASCONDI RISULTATI** per tornare indietro).
 
-## Backup
-I dati stanno nel localStorage di QUEL browser su QUEL tablet: non cancellare i dati di navigazione e usa sempre lo stesso browser.
-- **ESPORTA DATI** (pannello admin): scarica `halloween-backup.json`.
-- **IMPORTA DATI**: ripristina un backup scegliendo il file.
-Fai un backup prima della festa e uno a fine votazione.
+## Presentazione in diretta (solo admin)
+Chiudi la votazione, poi **🎬 PRESENTAZIONE**: categoria per categoria, i partecipanti compaiono dal fondo alla vetta, il premio assoluto per ultimo.
+In caso di parità compare un **ballottaggio**: scegli a voce l'ordine e tocca i nomi dal migliore al peggiore.
